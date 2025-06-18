@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>コードエディタ</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+  <script>
+    window.require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
+  </script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.4.1/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    #editor { height: calc(100vh - 200px); }
+  </style>
+</head>
+<body class="bg-gray-900 text-white p-6">
+  <h1 class="text-2xl font-bold mb-4"><%= id ? "再編集中: " + id : "新規作成" %></h1>
+
+  <div class="flex gap-2 mb-4">
+    <select id="fileSelector" class="text-black p-2 rounded"></select>
+    <button onclick="addFile()" class="bg-green-600 px-3 py-1 rounded">＋ファイル追加</button>
+    <button onclick="deleteFile()" class="bg-red-600 px-3 py-1 rounded">🗑️削除</button>
+    <button onclick="saveFiles()" class="ml-auto bg-blue-600 px-4 py-2 rounded">💾 保存</button>
+  </div>
+
+  <div id="editor" class="rounded border border-gray-700"></div>
+
+  <script>
+    const files = <%- JSON.stringify(files) %>;
+    const id = "<%= id || "" %>";
+    let editor, currentFile = Object.keys(files)[0] || "public/index.html";
+
+    require(['vs/editor/editor.main'], function () {
+      editor = monaco.editor.create(document.getElementById('editor'), {
+        value: files[currentFile] || "",
+        language: getLanguage(currentFile),
+        theme: 'vs-dark',
+        automaticLayout: true
+      });
+
+      updateSelector();
+    });
+
+    function updateSelector() {
+      const selector = document.getElementById('fileSelector');
+      selector.innerHTML = '';
+      Object.keys(files).forEach(path => {
+        const option = document.createElement('option');
+        option.value = path;
+        option.textContent = path;
+        selector.appendChild(option);
+      });
+      selector.value = currentFile;
+    }
+
+    function switchFile() {
+      files[currentFile] = editor.getValue();
+      currentFile = document.getElementById('fileSelector').value;
+      editor.setValue(files[currentFile]);
+      monaco.editor.setModelLanguage(editor.getModel(), getLanguage(currentFile));
+    }
+
+    function getLanguage(filename) {
+      if (filename.endsWith('.js')) return 'javascript';
+      if (filename.endsWith('.ts')) return 'typescript';
+      if (filename.endsWith('.html')) return 'html';
+      if (filename.endsWith('.css')) return 'css';
+      if (filename.endsWith('.py')) return 'python';
+      if (filename.endsWith('.json')) return 'json';
+      return 'plaintext';
+    }
+
+    function addFile() {
+      const name = prompt("ファイル名 (例: public/index.html)");
+      if (!name) return;
+      if (files[name]) return alert("既に存在します");
+      files[name] = '';
+      currentFile = name;
+      editor.setValue('');
+      monaco.editor.setModelLanguage(editor.getModel(), getLanguage(name));
+      updateSelector();
+    }
+
+    function deleteFile() {
+      if (!confirm(currentFile + " を削除しますか？")) return;
+      delete files[currentFile];
+      const keys = Object.keys(files);
+      currentFile = keys[0] || "public/index.html";
+      editor.setValue(files[currentFile] || '');
+      monaco.editor.setModelLanguage(editor.getModel(), getLanguage(currentFile));
+      updateSelector();
+    }
+
+    function saveFiles() {
+      files[currentFile] = editor.getValue();
+      fetch('/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, files })
+      })
+        .then(res => res.json())
+        .then(data => {
+          alert("保存されました: /view/" + data.id);
+          window.location.href = '/edit/' + data.id;
+        });
+    }
+
+    document.getElementById('fileSelector').addEventListener('change', switchFile);
+  </script>
+</body>
+</html>
