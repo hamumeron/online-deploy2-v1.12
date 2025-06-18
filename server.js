@@ -18,28 +18,24 @@ db.run(`CREATE TABLE IF NOT EXISTS projects (
   files TEXT
 )`);
 
-app.get('/', (req, res) => {
-  res.redirect('/new');
-});
+app.get('/', (req, res) => res.redirect('/new'));
 
 app.get('/new', (req, res) => {
   res.render('editor', { id: null, files: {} });
 });
 
 app.get('/edit/:id', (req, res) => {
-  const id = req.params.id;
-  db.get(`SELECT * FROM projects WHERE id = ?`, [id], (err, row) => {
+  db.get(`SELECT * FROM projects WHERE id = ?`, [req.params.id], (err, row) => {
     if (!row) return res.send('Not found');
     const files = JSON.parse(row.files);
-    res.render('editor', { id, files });
+    res.render('editor', { id: req.params.id, files });
   });
 });
 
 app.post('/save', (req, res) => {
   const id = req.body.id || nanoid(8);
-  const files = req.body.files;
   db.run(`REPLACE INTO projects (id, files) VALUES (?, ?)`,
-    [id, JSON.stringify(files)], err => {
+    [id, JSON.stringify(req.body.files)], err => {
       if (err) return res.send('Error saving');
       res.json({ success: true, id });
     });
@@ -53,5 +49,4 @@ app.get('/view/:id', (req, res) => {
   });
 });
 
-const port = process.env.PORT || 3000;
-app.listen(port, () => console.log('Server started on port', port));
+app.listen(process.env.PORT || 3000, () => console.log('Server running'));
